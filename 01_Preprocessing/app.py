@@ -130,11 +130,20 @@ def prepare(df: pd.DataFrame) -> pd.DataFrame:
     df['Insulin'] = df['Insulin'].fillna(predict_insulin(insulin_model, df))
     skinthickness_model = training_model_to_predict_skinthickness(df)
     df['SkinThickness'] = df['SkinThickness'].fillna(predict_skinthickness(skinthickness_model, df))
-    df = remove_outliers(df, 'DiabetesPedigreeFunction')
+    # df = remove_outliers(df, 'DiabetesPedigreeFunction')
     df.dropna(inplace=True)
     return df
 
-def preprocess(df: pd.DataFrame, l2_normalizer: Normalizer, pca_glucose_insulin: PCA, pca_skinthickness_bmi: PCA, min_max_glucose_insulin: MinMaxScaler, min_max_skinthickness_bmi: MinMaxScaler, min_max_dpf: MinMaxScaler, min_max_pregnancies: MinMaxScaler, fit = False) -> pd.DataFrame:
+def preprocess(
+        df: pd.DataFrame, 
+        l2_normalizer: Normalizer, 
+        pca_glucose_insulin: PCA, 
+        pca_skinthickness_bmi: PCA, 
+        min_max_glucose_insulin: MinMaxScaler, 
+        min_max_skinthickness_bmi: MinMaxScaler, 
+        min_max_dpf: MinMaxScaler, 
+        fit = False
+        ) -> pd.DataFrame:
     if fit:
         pca_glucose_insulin.fit(df[['Glucose', 'Insulin']])
     df['glucose_insulin'] = pca_glucose_insulin.transform(df[['Glucose', 'Insulin']])
@@ -150,6 +159,8 @@ def preprocess(df: pd.DataFrame, l2_normalizer: Normalizer, pca_glucose_insulin:
     df_columns = df.columns
     df = l2_normalizer.transform(df)
     df = pd.DataFrame(df, columns=df_columns)
+
+    analyze_df(df); import sys; sys.exit(0);
     
     if fit:
         min_max_glucose_insulin.fit(df[['glucose_insulin']])
@@ -180,7 +191,6 @@ if __name__ == "__main__":
     min_max_glucose_insulin = MinMaxScaler()
     min_max_skinthickness_bmi = MinMaxScaler()
     min_max_dpf = MinMaxScaler()
-    min_max_pregnancies = MinMaxScaler()
     knn = KNeighborsClassifier(n_neighbors=3)
 
     if 'analyze' in os.sys.argv[1:]:
@@ -190,8 +200,8 @@ if __name__ == "__main__":
         X_train.reset_index(drop=True, inplace=True)
         X_test.reset_index(drop=True, inplace=True)
         
-        X_train = preprocess(X_train, l2_normalizer, pca_glucose_insulin, pca_skinthickness_bmi, min_max_glucose_insulin, min_max_skinthickness_bmi, min_max_dpf, min_max_pregnancies, fit=True)
-        X_test = preprocess(X_test, l2_normalizer, pca_glucose_insulin, pca_skinthickness_bmi, min_max_glucose_insulin, min_max_skinthickness_bmi, min_max_dpf, min_max_pregnancies)
+        X_train = preprocess(X_train, l2_normalizer, pca_glucose_insulin, pca_skinthickness_bmi, min_max_glucose_insulin, min_max_skinthickness_bmi, min_max_dpf, fit=True)
+        X_test = preprocess(X_test, l2_normalizer, pca_glucose_insulin, pca_skinthickness_bmi, min_max_glucose_insulin, min_max_skinthickness_bmi, min_max_dpf)
 
         knn.fit(X_train, y_train)
         y_pred = knn.predict(X_test)
@@ -209,17 +219,17 @@ if __name__ == "__main__":
         print(X_test[X_test['Outcome'] == 1][X_test['Predicted'] == 0])
 
     if 'analyze-dataset' in os.sys.argv[1:]:
-        X_train = preprocess(X_train, l2_normalizer, pca_glucose_insulin, pca_skinthickness_bmi, min_max_glucose_insulin, min_max_skinthickness_bmi, min_max_dpf, min_max_pregnancies, fit=True)
+        X_train = preprocess(X_train, l2_normalizer, pca_glucose_insulin, pca_skinthickness_bmi, min_max_glucose_insulin, min_max_skinthickness_bmi, min_max_dpf, fit=True)
         X_train['Outcome'] = y_train.reset_index(drop=True)
         analyze_df(X_train)
 
     if 'send' in os.sys.argv[1:]:
-        X_train = preprocess(X_train, l2_normalizer, pca_glucose_insulin, pca_skinthickness_bmi, min_max_glucose_insulin, min_max_skinthickness_bmi, min_max_dpf, min_max_pregnancies, fit=True)
+        X_train = preprocess(X_train, l2_normalizer, pca_glucose_insulin, pca_skinthickness_bmi, min_max_glucose_insulin, min_max_skinthickness_bmi, min_max_dpf, fit=True)
         knn.fit(X_train, y_train)
 
         df_pred = pd.read_csv('diabetes_app.csv')
         df_pred = prepare(df_pred)
-        df_pred = preprocess(df_pred, l2_normalizer, pca_glucose_insulin, pca_skinthickness_bmi, min_max_glucose_insulin, min_max_skinthickness_bmi, min_max_dpf, min_max_pregnancies)
+        df_pred = preprocess(df_pred, l2_normalizer, pca_glucose_insulin, pca_skinthickness_bmi, min_max_glucose_insulin, min_max_skinthickness_bmi, min_max_dpf)
 
         y_pred_app = knn.predict(df_pred)
 
