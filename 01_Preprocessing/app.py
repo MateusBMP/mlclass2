@@ -130,7 +130,7 @@ def prepare(df: pd.DataFrame) -> pd.DataFrame:
     df['Insulin'] = df['Insulin'].fillna(predict_insulin(insulin_model, df))
     skinthickness_model = training_model_to_predict_skinthickness(df)
     df['SkinThickness'] = df['SkinThickness'].fillna(predict_skinthickness(skinthickness_model, df))
-    # df = remove_outliers(df, 'DiabetesPedigreeFunction')
+    df = remove_outliers(df, 'DiabetesPedigreeFunction')
     df.dropna(inplace=True)
     return df
 
@@ -160,8 +160,6 @@ def preprocess(
     df = l2_normalizer.transform(df)
     df = pd.DataFrame(df, columns=df_columns)
 
-    analyze_df(df); import sys; sys.exit(0);
-    
     if fit:
         min_max_glucose_insulin.fit(df[['glucose_insulin']])
     df['glucose_insulin'] = min_max_glucose_insulin.transform(df[['glucose_insulin']])
