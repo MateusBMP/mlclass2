@@ -125,14 +125,50 @@ def confusion_matrix_analyze(cm: dict) -> None:
     print(f"  - Recall:    {recall_score(cm['True Positive'], cm['False Negative']):.4f}")
     print(f"  - F1 Score:  {f1_score(cm['True Positive'], cm['False Positive'], cm['False Negative']):.4f}")
 
-def prepare(df: pd.DataFrame) -> pd.DataFrame:
+def set_columns_type(df: pd.DataFrame) -> pd.DataFrame:
+    df['Pregnancies'] = df['Pregnancies'].astype(int)
+    df['Glucose'] = df['Glucose'].astype(int)
+    df['BloodPressure'] = df['BloodPressure'].astype(int)
+    df['SkinThickness'] = df['SkinThickness'].astype(int)
+    df['Insulin'] = df['Insulin'].astype(float)
+    df['BMI'] = df['BMI'].astype(float)
+    df['DiabetesPedigreeFunction'] = df['DiabetesPedigreeFunction'].astype(float)
+    df['Age'] = df['Age'].astype(int)
+    return df
+
+def test_dataset() -> tuple[pd.DataFrame, pd.Series]:
+    df = pd.read_csv('diabetes_dataset.csv')
+
+    df.dropna(inplace=True)
+
+    df = set_columns_type(df)
+    df['Outcome'] = df['Outcome'].astype(int)
+
+    X = df.drop(columns=['Outcome'])
+    y = df['Outcome']
+    _, X_test, _, y_test = train_test_split(X, y, test_size=0.7, random_state=42)
+    return X_test, y_test
+
+def train_dataset() -> tuple[pd.DataFrame, pd.Series]:
+    df = pd.read_csv('diabetes_dataset.csv')
+    X_test, _ = test_dataset()
+    df = df.drop(X_test.index)
+
+    # Enrich the dataset
     insulin_model = training_model_to_predict_insulin(df)
     df['Insulin'] = df['Insulin'].fillna(predict_insulin(insulin_model, df))
     skinthickness_model = training_model_to_predict_skinthickness(df)
     df['SkinThickness'] = df['SkinThickness'].fillna(predict_skinthickness(skinthickness_model, df))
+
     df = remove_outliers(df, 'DiabetesPedigreeFunction')
     df.dropna(inplace=True)
-    return df
+
+    df = set_columns_type(df)
+    df['Outcome'] = df['Outcome'].astype(int)
+
+    X_train = df.drop(columns=['Outcome'])
+    y_train = df['Outcome']
+    return X_train, y_train
 
 def preprocess(
         df: pd.DataFrame, 
@@ -177,11 +213,16 @@ def preprocess(
 
 if __name__ == "__main__":
     df = pd.read_csv('diabetes_dataset.csv')
-    df = prepare(df)
+    X_test, y_test = test_dataset()
+    X_train, y_train = train_dataset()
 
-    X = df.drop(columns=['Outcome'])
-    y = df['Outcome']
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+    X_test.reset_index(drop=True, inplace=True)
+    y_test.reset_index(drop=True, inplace=True)
+    X_train.reset_index(drop=True, inplace=True)
+    y_train.reset_index(drop=True, inplace=True)
+
+    # print("Train set shape:", X_train.shape)
+    # print("Test set shape:", X_test.shape)
 
     l2_normalizer = Normalizer(norm='l2')
     pca_glucose_insulin = PCA(n_components=1)
@@ -189,44 +230,36 @@ if __name__ == "__main__":
     min_max_glucose_insulin = MinMaxScaler()
     min_max_skinthickness_bmi = MinMaxScaler()
     min_max_dpf = MinMaxScaler()
+    
+    X_train = preprocess(X_train, l2_normalizer, pca_glucose_insulin, pca_skinthickness_bmi, min_max_glucose_insulin, min_max_skinthickness_bmi, min_max_dpf, fit=True)
+    X_test = preprocess(X_test, l2_normalizer, pca_glucose_insulin, pca_skinthickness_bmi, min_max_glucose_insulin, min_max_skinthickness_bmi, min_max_dpf)
+
     knn = KNeighborsClassifier(n_neighbors=3)
+    knn.fit(X_train, y_train)
 
-    if 'analyze' in os.sys.argv[1:]:
-        print("Train set shape:", X_train.shape)
-        print("Test set shape:", X_test.shape)
-
-        X_train.reset_index(drop=True, inplace=True)
-        X_test.reset_index(drop=True, inplace=True)
-        
-        X_train = preprocess(X_train, l2_normalizer, pca_glucose_insulin, pca_skinthickness_bmi, min_max_glucose_insulin, min_max_skinthickness_bmi, min_max_dpf, fit=True)
-        X_test = preprocess(X_test, l2_normalizer, pca_glucose_insulin, pca_skinthickness_bmi, min_max_glucose_insulin, min_max_skinthickness_bmi, min_max_dpf)
-
-        knn.fit(X_train, y_train)
+    if 'versus-test' in os.sys.argv[1:]:
         y_pred = knn.predict(X_test)
 
         cm = confusion_matrix(y_test, y_pred)
         confusion_matrix_analyze(cm)
 
-        X_test['Predicted'] = y_test.reset_index(drop=True)
+        X_test['Predicted'] = y_test
         X_test['Outcome'] = y_pred
-        X_test.astype({'Predicted': 'int', 'Outcome': 'int'})
+        X_test.astype({'Predicted': int, 'Outcome': int})
 
         print("Test set false positive:")
         print(X_test[X_test['Outcome'] == 0][X_test['Predicted'] == 1])
         print("Test set false negative:")
         print(X_test[X_test['Outcome'] == 1][X_test['Predicted'] == 0])
 
-    if 'analyze-dataset' in os.sys.argv[1:]:
-        X_train = preprocess(X_train, l2_normalizer, pca_glucose_insulin, pca_skinthickness_bmi, min_max_glucose_insulin, min_max_skinthickness_bmi, min_max_dpf, fit=True)
-        X_train['Outcome'] = y_train.reset_index(drop=True)
+    if 'analyze' in os.sys.argv[1:]:
+        X_train['Outcome'] = y_train
         analyze_df(X_train)
 
-    if 'send' in os.sys.argv[1:]:
-        X_train = preprocess(X_train, l2_normalizer, pca_glucose_insulin, pca_skinthickness_bmi, min_max_glucose_insulin, min_max_skinthickness_bmi, min_max_dpf, fit=True)
-        knn.fit(X_train, y_train)
-
+    if 'versus-production' in os.sys.argv[1:]:
         df_pred = pd.read_csv('diabetes_app.csv')
-        df_pred = prepare(df_pred)
+
+        df_pred = set_columns_type(df_pred)
         df_pred = preprocess(df_pred, l2_normalizer, pca_glucose_insulin, pca_skinthickness_bmi, min_max_glucose_insulin, min_max_skinthickness_bmi, min_max_dpf)
 
         y_pred_app = knn.predict(df_pred)
