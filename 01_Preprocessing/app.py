@@ -139,14 +139,14 @@ def set_columns_type(df: pd.DataFrame) -> pd.DataFrame:
 def test_dataset() -> tuple[pd.DataFrame, pd.Series]:
     df = pd.read_csv('diabetes_dataset.csv')
 
-    df.dropna(inplace=True)
+    df = df.dropna()
 
     df = set_columns_type(df)
     df['Outcome'] = df['Outcome'].astype(int)
 
     X = df.drop(columns=['Outcome'])
     y = df['Outcome']
-    _, X_test, _, y_test = train_test_split(X, y, test_size=0.7, random_state=42)
+    _, X_test, _, y_test = train_test_split(X, y, test_size=0.9, random_state=42)
     return X_test, y_test
 
 def train_dataset() -> tuple[pd.DataFrame, pd.Series]:
@@ -155,13 +155,13 @@ def train_dataset() -> tuple[pd.DataFrame, pd.Series]:
     df = df.drop(X_test.index)
 
     # Enrich the dataset
-    insulin_model = training_model_to_predict_insulin(df)
-    df['Insulin'] = df['Insulin'].fillna(predict_insulin(insulin_model, df))
-    skinthickness_model = training_model_to_predict_skinthickness(df)
-    df['SkinThickness'] = df['SkinThickness'].fillna(predict_skinthickness(skinthickness_model, df))
+    # insulin_model = training_model_to_predict_insulin(df)
+    # df['Insulin'] = df['Insulin'].fillna(predict_insulin(insulin_model, df))
+    # skinthickness_model = training_model_to_predict_skinthickness(df)
+    # df['SkinThickness'] = df['SkinThickness'].fillna(predict_skinthickness(skinthickness_model, df))
 
-    df = remove_outliers(df, 'DiabetesPedigreeFunction')
-    df.dropna(inplace=True)
+    # df = remove_outliers(df, 'DiabetesPedigreeFunction')
+    df = df.dropna()
 
     df = set_columns_type(df)
     df['Outcome'] = df['Outcome'].astype(int)
@@ -180,33 +180,33 @@ def preprocess(
         min_max_dpf: MinMaxScaler, 
         fit = False
         ) -> pd.DataFrame:
-    if fit:
-        pca_glucose_insulin.fit(df[['Glucose', 'Insulin']])
-    df['glucose_insulin'] = pca_glucose_insulin.transform(df[['Glucose', 'Insulin']])
-    df.drop(columns=['Glucose', 'Insulin'], inplace=True)
+    # if fit:
+    #     pca_glucose_insulin.fit(df[['Glucose', 'Insulin']])
+    # df['glucose_insulin'] = pca_glucose_insulin.transform(df[['Glucose', 'Insulin']])
+    # df.drop(columns=['Glucose', 'Insulin'], inplace=True)
 
-    if fit:
-        pca_skinthickness_bmi.fit(df[['SkinThickness', 'BMI']])
-    df['skinthickness_bmi'] = pca_skinthickness_bmi.transform(df[['SkinThickness', 'BMI']])
-    df.drop(columns=['SkinThickness', 'BMI'], inplace=True)
+    # if fit:
+    #     pca_skinthickness_bmi.fit(df[['SkinThickness', 'BMI']])
+    # df['skinthickness_bmi'] = pca_skinthickness_bmi.transform(df[['SkinThickness', 'BMI']])
+    # df.drop(columns=['SkinThickness', 'BMI'], inplace=True)
 
-    if fit:
-        l2_normalizer.fit(df)
-    df_columns = df.columns
-    df = l2_normalizer.transform(df)
-    df = pd.DataFrame(df, columns=df_columns)
+    # if fit:
+    #     l2_normalizer.fit(df)
+    # df_columns = df.columns
+    # df = l2_normalizer.transform(df)
+    # df = pd.DataFrame(df, columns=df_columns)
 
-    if fit:
-        min_max_glucose_insulin.fit(df[['glucose_insulin']])
-    df['glucose_insulin'] = min_max_glucose_insulin.transform(df[['glucose_insulin']])
+    # if fit:
+    #     min_max_glucose_insulin.fit(df[['glucose_insulin']])
+    # df['glucose_insulin'] = min_max_glucose_insulin.transform(df[['glucose_insulin']])
 
-    if fit:
-        min_max_skinthickness_bmi.fit(df[['skinthickness_bmi']])
-    df['skinthickness_bmi'] = min_max_skinthickness_bmi.transform(df[['skinthickness_bmi']])
+    # if fit:
+    #     min_max_skinthickness_bmi.fit(df[['skinthickness_bmi']])
+    # df['skinthickness_bmi'] = min_max_skinthickness_bmi.transform(df[['skinthickness_bmi']])
 
-    if fit:
-        min_max_dpf.fit(df[['DiabetesPedigreeFunction']])
-    df['DiabetesPedigreeFunction'] = min_max_dpf.transform(df[['DiabetesPedigreeFunction']])
+    # if fit:
+    #     min_max_dpf.fit(df[['DiabetesPedigreeFunction']])
+    # df['DiabetesPedigreeFunction'] = min_max_dpf.transform(df[['DiabetesPedigreeFunction']])
 
     return df
 
