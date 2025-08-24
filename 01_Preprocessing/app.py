@@ -3,43 +3,65 @@ import requests
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from sklearn.preprocessing import Normalizer, MinMaxScaler
-from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LinearRegression
 
-def training_model_to_predict_insulin(df: pd.DataFrame) -> LinearRegression:
-    df = df.dropna(subset=['Glucose', 'Insulin'])
-    X = df['Glucose'].values.reshape(-1, 1)
-    y = df['Insulin']
-
-    model = LinearRegression()
-    model.fit(X, y)
-
-    return model
-
-def training_model_to_predict_skinthickness(df: pd.DataFrame) -> LinearRegression:
-    df = df.dropna(subset=['BMI', 'SkinThickness'])
-    X = df['BMI'].values.reshape(-1, 1)
-    y = df['SkinThickness']
-
-    model = LinearRegression()
-    model.fit(X, y)
-
-    return model
-
-def predict_insulin(model: LinearRegression, df: pd.DataFrame) -> pd.Series:
-    df = df.dropna(subset=['Glucose'])
-    X = df['Glucose'].values.reshape(-1, 1)
-    predictions = model.predict(X)
-    return pd.Series(predictions, index=df.index)
-
-def predict_skinthickness(model: LinearRegression, df: pd.DataFrame) -> pd.Series:
-    df = df.dropna(subset=['BMI'])
-    X = df['BMI'].values.reshape(-1, 1)
-    predictions = model.predict(X)
-    return pd.Series(predictions, index=df.index)
+# Função para plotar a matriz de scatter plots com cores condicionais
+def plot_correlation_with_color(df, real_cols, bin_cols):
+    n = len(real_cols)
+    fig, axes = plt.subplots(n, n, figsize=(50, 50))
+    
+    for i in range(n):
+        for j in range(n):
+            ax = axes[i, j]
+            
+            if i == j:
+                # Diagonal: mostrar o nome da variável
+                ax.text(0.5, 0.5, real_cols[i], ha='center', va='center', fontsize=12)
+                ax.set_xticks([])
+                ax.set_yticks([])
+            else:
+                # Scatter plot para colunas i e j
+                x_col = real_cols[j]
+                y_col = real_cols[i]
+                
+                # Verificar se os valores das colunas binárias são iguais
+                same_bin = (df[bin_cols[0]] == df[bin_cols[1]])
+                
+                # Plotar pontos onde bin1 == bin2 (mesma cor, ex: azul)
+                ax.scatter(
+                    df[x_col][same_bin],
+                    df[y_col][same_bin],
+                    color='blue',
+                    label=f'{bin_cols[0]} == {bin_cols[1]}',
+                    alpha=0.6
+                )
+                
+                # Plotar pontos onde bin1 != bin2 (outra cor, ex: vermelho)
+                ax.scatter(
+                    df[x_col][~same_bin],
+                    df[y_col][~same_bin],
+                    color='red',
+                    label=f'{bin_cols[0]} != {bin_cols[1]}',
+                    alpha=0.6
+                )
+                
+                # Configurar eixos
+                ax.set_xlabel(x_col)
+                ax.set_ylabel(y_col)
+                ax.set_xticks([])
+                ax.set_yticks([])
+        
+    # Ajustar layout
+    plt.tight_layout()
+    # plt.legend(handles=[
+    #     plt.Line2D([0], [0], marker='o', color='w', markerfacecolor='blue', markersize=10, label=f'{bin_cols[0]} == {bin_cols[1]}'),
+    #     plt.Line2D([0], [0], marker='o', color='w', markerfacecolor='red', markersize=10, label=f'{bin_cols[0]} != {bin_cols[1]}')
+    # ], bbox_to_anchor=(1.05, 1), loc='upper left')
+    
+    # plt.suptitle(f"Scatter Matrix (Colorized by {bin_cols[0]} vs {bin_cols[1]})", y=1.02)
+    plt.show()
 
 def analyze_df(df: pd.DataFrame) -> None:
     for column in df.select_dtypes(include=['bool']).columns:
@@ -62,30 +84,6 @@ def analyze_df(df: pd.DataFrame) -> None:
     df.hist(bins=30, figsize=(10, 10), layout=(3, 3))
     plt.tight_layout()
     plt.show()
-
-def get_outliers(df: pd.DataFrame, column: str) -> pd.DataFrame:
-    Q1 = df[column].quantile(0.25)
-    Q3 = df[column].quantile(0.75)
-    IQR = Q3 - Q1
-    
-    lower_limit = Q1 - 1.5 * IQR
-    upper_limit = Q3 + 1.5 * IQR
-    
-    outliers = df[(df[column] < lower_limit) | (df[column] > upper_limit)]
-    
-    return outliers
-
-def remove_outliers(df: pd.DataFrame, column: str) -> pd.DataFrame:
-    Q1 = df[column].quantile(0.25)
-    Q3 = df[column].quantile(0.75)
-    IQR = Q3 - Q1
-    
-    lower_limit = Q1 - 1.5 * IQR
-    upper_limit = Q3 + 1.5 * IQR
-    
-    without_outliers = df[(df[column] >= lower_limit) & (df[column] <= upper_limit)].copy()
-    
-    return without_outliers
 
 def confusion_matrix(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
     true_positive = np.sum((y_true == 1) & (y_pred == 1))
@@ -146,7 +144,7 @@ def test_dataset() -> tuple[pd.DataFrame, pd.Series]:
 
     X = df.drop(columns=['Outcome'])
     y = df['Outcome']
-    _, X_test, _, y_test = train_test_split(X, y, test_size=0.9, random_state=42)
+    _, X_test, _, y_test = train_test_split(X, y, test_size=0.9, random_state=10)
     return X_test, y_test
 
 def train_dataset() -> tuple[pd.DataFrame, pd.Series]:
@@ -154,13 +152,6 @@ def train_dataset() -> tuple[pd.DataFrame, pd.Series]:
     X_test, _ = test_dataset()
     df = df.drop(X_test.index)
 
-    # Enrich the dataset
-    # insulin_model = training_model_to_predict_insulin(df)
-    # df['Insulin'] = df['Insulin'].fillna(predict_insulin(insulin_model, df))
-    # skinthickness_model = training_model_to_predict_skinthickness(df)
-    # df['SkinThickness'] = df['SkinThickness'].fillna(predict_skinthickness(skinthickness_model, df))
-
-    # df = remove_outliers(df, 'DiabetesPedigreeFunction')
     df = df.dropna()
 
     df = set_columns_type(df)
@@ -172,47 +163,44 @@ def train_dataset() -> tuple[pd.DataFrame, pd.Series]:
 
 def preprocess(
         df: pd.DataFrame, 
-        l2_normalizer: Normalizer, 
-        pca_glucose_insulin: PCA, 
-        pca_skinthickness_bmi: PCA, 
-        min_max_glucose_insulin: MinMaxScaler, 
-        min_max_skinthickness_bmi: MinMaxScaler, 
-        min_max_dpf: MinMaxScaler, 
+        ss_Pregnancies: StandardScaler,
+        ss_SkinThickness: StandardScaler,
+        ss_Insulin: StandardScaler,
+        ss_BMI: StandardScaler,
+        ss_Age: StandardScaler,
         fit = False
         ) -> pd.DataFrame:
-    # if fit:
-    #     pca_glucose_insulin.fit(df[['Glucose', 'Insulin']])
-    # df['glucose_insulin'] = pca_glucose_insulin.transform(df[['Glucose', 'Insulin']])
-    # df.drop(columns=['Glucose', 'Insulin'], inplace=True)
+    if fit:
+        ss_Pregnancies.fit(df[['Pregnancies']])
+    df['Pregnancies'] = ss_Pregnancies.transform(df[['Pregnancies']])
 
-    # if fit:
-    #     pca_skinthickness_bmi.fit(df[['SkinThickness', 'BMI']])
-    # df['skinthickness_bmi'] = pca_skinthickness_bmi.transform(df[['SkinThickness', 'BMI']])
-    # df.drop(columns=['SkinThickness', 'BMI'], inplace=True)
+    df['Glucose'] = df['Glucose'] * 0.5
 
-    # if fit:
-    #     l2_normalizer.fit(df)
-    # df_columns = df.columns
-    # df = l2_normalizer.transform(df)
-    # df = pd.DataFrame(df, columns=df_columns)
+    df['BloodPressure'] = df['BloodPressure'] + df['BloodPressure'].quantile(0.5)
 
-    # if fit:
-    #     min_max_glucose_insulin.fit(df[['glucose_insulin']])
-    # df['glucose_insulin'] = min_max_glucose_insulin.transform(df[['glucose_insulin']])
+    df['BloodPressure'] = df['BloodPressure'] * 2
 
-    # if fit:
-    #     min_max_skinthickness_bmi.fit(df[['skinthickness_bmi']])
-    # df['skinthickness_bmi'] = min_max_skinthickness_bmi.transform(df[['skinthickness_bmi']])
+    if fit:
+        ss_SkinThickness.fit(df[['SkinThickness']])
+    df['SkinThickness'] = ss_SkinThickness.transform(df[['SkinThickness']])
 
-    # if fit:
-    #     min_max_dpf.fit(df[['DiabetesPedigreeFunction']])
-    # df['DiabetesPedigreeFunction'] = min_max_dpf.transform(df[['DiabetesPedigreeFunction']])
+    if fit:
+        ss_Insulin.fit(df[['Insulin']])
+    df['Insulin'] = ss_Insulin.transform(df[['Insulin']])
+
+    if fit:
+        ss_BMI.fit(df[['BMI']])
+    df['BMI'] = ss_BMI.transform(df[['BMI']])
+
+    df['DiabetesPedigreeFunction'] = df['DiabetesPedigreeFunction'] * 25
+
+    if fit:
+        ss_Age.fit(df[['Age']])
+    df['Age'] = ss_Age.transform(df[['Age']])
 
     return df
 
-
-if __name__ == "__main__":
-    df = pd.read_csv('diabetes_dataset.csv')
+def prepare_algorithm() -> tuple[pd.DataFrame, pd.Series, pd.DataFrame, pd.Series, KNeighborsClassifier, StandardScaler, StandardScaler, StandardScaler, StandardScaler, StandardScaler]:
     X_test, y_test = test_dataset()
     X_train, y_train = train_dataset()
 
@@ -221,23 +209,23 @@ if __name__ == "__main__":
     X_train.reset_index(drop=True, inplace=True)
     y_train.reset_index(drop=True, inplace=True)
 
-    # print("Train set shape:", X_train.shape)
-    # print("Test set shape:", X_test.shape)
-
-    l2_normalizer = Normalizer(norm='l2')
-    pca_glucose_insulin = PCA(n_components=1)
-    pca_skinthickness_bmi = PCA(n_components=1)
-    min_max_glucose_insulin = MinMaxScaler()
-    min_max_skinthickness_bmi = MinMaxScaler()
-    min_max_dpf = MinMaxScaler()
+    ss_Pregnancies = StandardScaler()
+    ss_SkinThickness = StandardScaler()
+    ss_Insulin = StandardScaler()
+    ss_BMI = StandardScaler()
+    ss_Age = StandardScaler()
     
-    X_train = preprocess(X_train, l2_normalizer, pca_glucose_insulin, pca_skinthickness_bmi, min_max_glucose_insulin, min_max_skinthickness_bmi, min_max_dpf, fit=True)
-    X_test = preprocess(X_test, l2_normalizer, pca_glucose_insulin, pca_skinthickness_bmi, min_max_glucose_insulin, min_max_skinthickness_bmi, min_max_dpf)
+    X_train = preprocess(X_train, ss_Pregnancies, ss_SkinThickness, ss_Insulin, ss_BMI, ss_Age, fit=True)
+    X_test = preprocess(X_test, ss_Pregnancies, ss_SkinThickness, ss_Insulin, ss_BMI, ss_Age)
 
     knn = KNeighborsClassifier(n_neighbors=3)
     knn.fit(X_train, y_train)
 
+    return X_train, y_train, X_test, y_test, knn, ss_Pregnancies, ss_SkinThickness, ss_Insulin, ss_BMI, ss_Age
+
+if __name__ == "__main__":
     if 'versus-test' in os.sys.argv[1:]:
+        X_train, y_train, X_test, y_test, knn, _, _, _, _, _ = prepare_algorithm()
         y_pred = knn.predict(X_test)
 
         cm = confusion_matrix(y_test, y_pred)
@@ -247,20 +235,31 @@ if __name__ == "__main__":
         X_test['Outcome'] = y_pred
         X_test.astype({'Predicted': int, 'Outcome': int})
 
-        print("Test set false positive:")
-        print(X_test[X_test['Outcome'] == 0][X_test['Predicted'] == 1])
-        print("Test set false negative:")
-        print(X_test[X_test['Outcome'] == 1][X_test['Predicted'] == 0])
+        # print("Test set false positive:")
+        # print(X_test[X_test['Outcome'] == 0][X_test['Predicted'] == 1])
+        # print("Test set false negative:")
+        # print(X_test[X_test['Outcome'] == 1][X_test['Predicted'] == 0])
 
-    if 'analyze' in os.sys.argv[1:]:
+        # plot_correlation_with_color(X_test, 
+        #                             real_cols=['Pregnancies', 'Glucose', 'BloodPressure', 'SkinThickness', 'Insulin', 'BMI', 'DiabetesPedigreeFunction', 'Age'],
+        #                             bin_cols=['Outcome', 'Predicted'])
+
+    if 'analyze-train' in os.sys.argv[1:]:
+        X_train, y_train, _, _, _, _, _, _, _, _ = prepare_algorithm()
         X_train['Outcome'] = y_train
         analyze_df(X_train)
 
+    if 'analyze-test' in os.sys.argv[1:]:
+        _, _, X_test, y_test, _, _, _, _, _, _ = prepare_algorithm()
+        X_test['Outcome'] = y_test
+        analyze_df(X_test)
+
     if 'versus-production' in os.sys.argv[1:]:
+        _, _, _, _, knn, ss_Pregnancies, ss_SkinThickness, ss_Insulin, ss_BMI, ss_Age = prepare_algorithm()
         df_pred = pd.read_csv('diabetes_app.csv')
 
         df_pred = set_columns_type(df_pred)
-        df_pred = preprocess(df_pred, l2_normalizer, pca_glucose_insulin, pca_skinthickness_bmi, min_max_glucose_insulin, min_max_skinthickness_bmi, min_max_dpf)
+        df_pred = preprocess(df_pred, ss_Pregnancies, ss_SkinThickness, ss_Insulin, ss_BMI, ss_Age)
 
         y_pred_app = knn.predict(df_pred)
 
